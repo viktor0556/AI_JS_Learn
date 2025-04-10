@@ -27,6 +27,20 @@ function App() {
     return totalGoals / goalsArray.length;
   };
 
+  const calculateGoalDifference = (goalsArray, concededArray) => {
+    if (
+      !goalsArray ||
+      goalsArray.length === 0 ||
+      !concededArray ||
+      concededArray.length === 0
+    )
+      return 0;
+    const totalGoals = goalsArray.reduce((a, b) => a + b, 0);
+    const totalConceded = concededArray.reduce((a, b) => a + b, 0);
+
+    return totalGoals - totalConceded;
+  };
+
   const calculateAccuracy = (a, b) => {
     return a.every((val, index) => val === b[index]);
   };
@@ -42,8 +56,16 @@ function App() {
     for (const m of testMatches) {
       const hazaiForm = calculateForm(m.homePrevMatches.goals);
       const vendegForm = calculateForm(m.awayPrevMatches.goals);
+      const hazaiDiff = calculateGoalDifference(
+        m.homePrevMatches.goals,
+        m.homePrevMatches.conceded
+      );
+      const vendegDiff = calculateGoalDifference(
+        m.awayPrevMatches.goals,
+        m.awayPrevMatches.conceded
+      );
 
-      const input = tf.tensor2d([[hazaiForm, vendegForm]]);
+      const input = tf.tensor2d([[hazaiForm, vendegForm, hazaiDiff, vendegDiff]]);
       const predictionTensor = modelReady.predict(input);
       const predictionArray = await predictionTensor.data();
       const predictIndex = predictionArray.indexOf(
@@ -73,7 +95,17 @@ function App() {
         .map((m) => {
           const hazaiForm = calculateForm(m.homePrevMatches.goals);
           const vendegForm = calculateForm(m.awayPrevMatches.goals);
-          return [hazaiForm, vendegForm];
+
+          const hazaiDiff = calculateGoalDifference(
+            m.homePrevMatches.goals,
+            m.homePrevMatches.conceded
+          );
+          const vendegDiff = calculateGoalDifference(
+            m.awayPrevMatches.goals,
+            m.awayPrevMatches.conceded
+          );
+
+          return [hazaiForm, vendegForm, hazaiDiff, vendegDiff];
         });
 
       const labels = trainMatchesRef.current
@@ -89,7 +121,7 @@ function App() {
 
       const model = tf.sequential();
       model.add(
-        tf.layers.dense({ inputShape: [2], units: 16, activation: "relu" })
+        tf.layers.dense({ inputShape: [4], units: 16, activation: "relu" })
       );
       model.add(tf.layers.dense({ units: 3, activation: "softmax" }));
 
@@ -137,7 +169,16 @@ function App() {
     const hf = calculateForm(randomMatch.homePrevMatches.goals);
     const af = calculateForm(randomMatch.awayPrevMatches.goals);
 
-    const input = tf.tensor2d([[parseFloat(hf), parseFloat(af)]]);
+    const hDiff = calculateGoalDifference(
+      randomMatch.homePrevMatches.goals,
+      randomMatch.homePrevMatches.conceded
+    );
+    const aDiff = calculateGoalDifference(
+      randomMatch.awayPrevMatches.goals,
+      randomMatch.awayPrevMatches.conceded
+    );
+
+    const input = tf.tensor2d([[hf, af, hDiff, aDiff]]);
 
     const predictionTensor = modelReady.predict(input);
     const predictionArray = await predictionTensor.data();
@@ -162,8 +203,10 @@ function App() {
     setPrediction(resultMap[index]);
     setProbabilities(percentageProbs);
 
-    const explanationText = `Bemenet: Hazai forma = ${hf}, Vendég forma = ${af}
-    AI döntés: ${resultMap[index]} (${percentageProbs[index]}%)`;
+    const explanationText = `Bemenet:
+Hazai forma = ${hf}, Vendég forma = ${af}
+Hazai gólkülönbség = ${hDiff}, Vendég gólkülönbség = ${aDiff}
+AI döntés: ${resultMap[index]} (${percentageProbs[index]}%)`;
 
     setExplanation(explanationText);
   };
